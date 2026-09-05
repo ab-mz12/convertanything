@@ -11,6 +11,9 @@ export type Block =
 
 const clean = (text: string | null | undefined): string => (text ?? '').replace(/\s+/g, ' ').trim();
 
+/** Strip a literal bullet that some Word documents keep inside the list item text. */
+const stripBullet = (text: string): string => text.replace(/^[•·▪‣◦●○■□➢➤►*-]\s+/, '');
+
 export function htmlToBlocks(html: string): Block[] {
   const document = new DOMParser().parseFromString(html, 'text/html');
   const blocks: Block[] = [];
@@ -49,7 +52,7 @@ export function htmlToBlocks(html: string): Block[] {
         .filter((child) => child.tagName.toLowerCase() === 'li')
         .map((li) => {
           pushImages(li);
-          return clean(li.textContent);
+          return stripBullet(clean(li.textContent));
         });
       if (items.length) blocks.push({ kind: 'list', ordered: tag === 'ol', items });
       return;

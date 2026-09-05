@@ -1,7 +1,8 @@
 import { getExtension } from '../../detect';
 import { outputFileName } from '../../formats';
 import { throwIfAborted, type ConversionRequest, type ConversionResult } from '../types';
-import { PdfWriter, UNSUPPORTED_GLYPHS_WARNING, hasUnsupportedGlyphs, type FontFamily } from './pdfWriter';
+import { hasRtlText } from './bidi';
+import { PdfWriter, unsupportedGlyphsWarning, type FontFamily } from './pdfWriter';
 
 const MONOSPACE_EXTENSIONS = new Set(['log', 'csv', 'json']);
 
@@ -12,11 +13,15 @@ export async function textToPdf(request: ConversionRequest): Promise<ConversionR
   const raw = await file.text();
   const text = raw.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\t/g, '    ');
   const lines = text.split('\n');
-  const family: FontFamily = MONOSPACE_EXTENSIONS.has(getExtension(file.name)) ? 'courier' : 'helvetica';
+  // Logs and CSVs read better in a monospace font, but Courier has no Arabic glyphs.
+  const family: FontFamily | undefined =
+    MONOSPACE_EXTENSIONS.has(getExtension(file.name)) && !hasRtlText(text) ? 'courier' : undefined;
   const size = family === 'courier' ? 9.5 : 11;
   const lineHeight = size * 1.35;
 
   const writer = new PdfWriter();
+  onProgress(null, 'Loading fonts');
+  await writer.useDocumentFonts();
   for (let i = 0; i < lines.length; i++) {
     if (i % 100 === 0) {
       throwIfAborted(signal);
@@ -35,6 +40,6 @@ export async function textToPdf(request: ConversionRequest): Promise<ConversionR
   return {
     blob: writer.toBlob(),
     fileName: outputFileName(file.name, 'pdf'),
-    warning: hasUnsupportedGlyphs(text) ? UNSUPPORTED_GLYPHS_WARNING : undefined,
+    warning: unsupportedGlyphsWarning(writer.unsupportedCharacters),
   };
 }

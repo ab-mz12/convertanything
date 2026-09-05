@@ -1,8 +1,21 @@
 /**
  * A tiny flow-layout engine on top of jsPDF: wrapped paragraphs, headings, bullet lists, simple
- * bordered tables and scaled images, with automatic page breaks and page numbers.
+ * bordered tables and scaled images, with automatic page breaks, page numbers, and proper
+ * right-to-left (Arabic/Hebrew) text handling.
  */
 import { jsPDF } from 'jspdf';
+import { hasRtlText, paragraphDirection, toVisualOrder, type Direction } from './bidi';
+import { DOCUMENT_FONT, loadDocumentFonts, registerDocumentFonts } from './pdfFonts';
+
+// jsPDF ships a hook that rewrites Arabic letters into positional forms on every text() call. We
+// do that ourselves (in logical order, *before* bidi reordering), so the hook must not run again
+// on the reordered string. Removing it from the static event list disables it for new documents.
+{
+  const api = jsPDF.API as unknown as { events?: Array<[string, unknown]>; processArabic?: unknown };
+  if (Array.isArray(api.events)) {
+    api.events = api.events.filter(([, handler]) => handler !== api.processArabic);
+  }
+}
 
 export type FontFamily = 'helvetica' | 'courier' | 'times';
 export type FontStyle = 'normal' | 'bold' | 'italic' | 'bolditalic';
@@ -10,11 +23,12 @@ export type FontStyle = 'normal' | 'bold' | 'italic' | 'bolditalic';
 export interface TextOptions {
   size?: number;
   style?: FontStyle;
+  /** Explicit family; defaults to the embedded Unicode font (or Helvetica when unavailable). */
   family?: FontFamily;
   color?: string;
   /** Extra vertical space (pt) after the block. */
   spacingAfter?: number;
-  /** Left indent (pt). */
+  /** Indent (pt) on the leading side of the paragraph. */
   indent?: number;
 }
 
@@ -36,12 +50,67 @@ export class PdfWriter {
   readonly pageHeight: number;
   readonly margin = 56;
   y: number;
+  private bodyFamily: string = 'helvetica';
+  private unicodeFont = false;
+  private readonly missingGlyphs = new Set<string>();
 
   constructor(orientation: 'portrait' | 'landscape' = 'portrait') {
     this.doc = new jsPDF({ unit: 'pt', format: 'a4', orientation, compress: true });
     this.pageWidth = this.doc.internal.pageSize.getWidth();
     this.pageHeight = this.doc.internal.pageSize.getHeight();
     this.y = this.margin;
+  }
+
+  /**
+   * Embed the Unicode font (Latin + Arabic). Resolves to false, leaving Helvetica in place, if the
+   * font files cannot be fetched.
+   */
+  async useDocumentFonts(): Promise<boolean> {
+    const fonts = await loadDocumentFonts();
+    if (!fonts) return false;
+    registerDocumentFonts(this.doc, fonts);
+    this.bodyFamily = DOCUMENT_FONT;
+    this.unicodeFont = true;
+    return true;
+  }
+
+  get hasUnicodeFont(): boolean {
+    return this.unicodeFont;
+  }
+
+  /** Characters that could not be drawn (no glyph in the font and no sensible substitute). */
+  get unsupportedCharacters(): string[] {
+    return [...this.missingGlyphs];
+  }
+
+  /** Whether the *current* font has a glyph for a character. */
+  private fontHasGlyph(char: string): boolean {
+    if (!this.unicodeFont) return WIN_ANSI_ONLY.test(char);
+    const metadata = (this.doc.internal as unknown as { getFont(): { metadata?: TtfMetadata } }).getFont().metadata;
+    if (!metadata || typeof metadata.characterToGlyph !== 'function') return true;
+    return metadata.characterToGlyph(char.charCodeAt(0)) !== 0;
+  }
+
+  /**
+   * Replace characters the font cannot show with the closest thing it can (ā → a, ʾ → ’), and
+   * remember the ones that had no substitute so the caller can warn about them.
+   */
+  private prepare(text: string): string {
+    let out = '';
+    for (const char of text) {
+      if (/\s/.test(char) || this.fontHasGlyph(char)) {
+        out += char;
+        continue;
+      }
+      const substitute = SUBSTITUTES[char] ?? char.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (substitute && substitute !== char && [...substitute].every((c) => this.fontHasGlyph(c))) {
+        out += substitute;
+        continue;
+      }
+      this.missingGlyphs.add(char);
+      out += char;
+    }
+    return out;
   }
 
   get contentWidth(): number {
@@ -66,8 +135,8 @@ export class PdfWriter {
     this.y += points;
   }
 
-  setFont(size: number, style: FontStyle = 'normal', family: FontFamily = 'helvetica'): void {
-    this.doc.setFont(family, style);
+  setFont(size: number, style: FontStyle = 'normal', family?: FontFamily): void {
+    this.doc.setFont(family ?? this.bodyFamily, style);
     this.doc.setFontSize(size);
   }
 
@@ -77,21 +146,33 @@ export class PdfWriter {
     return result.length ? result : [''];
   }
 
+  /** Draw one wrapped line between `left` and `right`, honouring its direction. */
+  private drawLine(line: string, left: number, right: number, y: number, direction: Direction): void {
+    const shaped = this.unicodeFont && hasRtlText(line) ? this.doc.processArabic(line) : line;
+    const visual = toVisualOrder(shaped, direction);
+    if (direction === 'rtl') this.doc.text(visual, right, y, { baseline: 'top', align: 'right' });
+    else this.doc.text(visual, left, y, { baseline: 'top' });
+  }
+
   writeText(text: string, options: TextOptions = {}): void {
     const size = options.size ?? 11;
     const indent = options.indent ?? 0;
     const lineHeight = size * LINE_HEIGHT;
     this.setFont(size, options.style, options.family);
     this.doc.setTextColor(options.color ?? '#111111');
-    for (const line of this.lines(text, this.contentWidth - indent)) {
+    text = this.prepare(text);
+    const direction = paragraphDirection(text);
+    const left = this.margin + (direction === 'ltr' ? indent : 0);
+    const right = this.pageWidth - this.margin - (direction === 'rtl' ? indent : 0);
+    for (const line of this.lines(text, right - left)) {
       this.ensureSpace(lineHeight);
-      this.doc.text(line, this.margin + indent, this.y, { baseline: 'top' });
+      this.drawLine(line, left, right, this.y, direction);
       this.y += lineHeight;
     }
     this.y += options.spacingAfter ?? 0;
   }
 
-  /** A list item: `marker` in the gutter, wrapped text beside it. */
+  /** A list item: `marker` in the gutter, wrapped text beside it (mirrored for RTL items). */
   writeListItem(text: string, marker: string, options: TextOptions = {}): void {
     const size = options.size ?? 11;
     const indent = options.indent ?? 0;
@@ -99,12 +180,17 @@ export class PdfWriter {
     const lineHeight = size * LINE_HEIGHT;
     this.setFont(size, options.style, options.family);
     this.doc.setTextColor(options.color ?? '#111111');
-    const lines = this.lines(text, this.contentWidth - indent - gutter);
+    text = this.prepare(text);
+    const direction = paragraphDirection(text);
+    const left = direction === 'ltr' ? this.margin + indent + gutter : this.margin;
+    const right = direction === 'ltr' ? this.pageWidth - this.margin : this.pageWidth - this.margin - indent - gutter;
+    const lines = this.lines(text, right - left);
     this.ensureSpace(lineHeight);
-    this.doc.text(marker, this.margin + indent, this.y, { baseline: 'top' });
+    if (direction === 'ltr') this.doc.text(marker, this.margin + indent, this.y, { baseline: 'top' });
+    else this.doc.text(marker, this.pageWidth - this.margin - indent, this.y, { baseline: 'top', align: 'right' });
     lines.forEach((line, i) => {
       if (i > 0) this.ensureSpace(lineHeight);
-      this.doc.text(line, this.margin + indent + gutter, this.y, { baseline: 'top' });
+      this.drawLine(line, left, right, this.y, direction);
       this.y += lineHeight;
     });
     this.y += options.spacingAfter ?? 2;
@@ -121,15 +207,17 @@ export class PdfWriter {
     this.doc.setDrawColor('#9ca3af');
     this.doc.setLineWidth(0.5);
 
-    for (const row of rows) {
+    for (const rawRow of rows) {
+      const row = rawRow.map((cell) => this.prepare(cell));
       const cells = Array.from({ length: columns }, (_, i) => this.lines(row[i] ?? '', colWidth - padding * 2));
       const rowHeight = Math.max(...cells.map((c) => c.length)) * lineHeight + padding * 2;
       this.ensureSpace(rowHeight);
       cells.forEach((lines, c) => {
         const x = this.margin + c * colWidth;
+        const direction = paragraphDirection(row[c] ?? '');
         this.doc.rect(x, this.y, colWidth, rowHeight);
         lines.forEach((line, i) => {
-          this.doc.text(line, x + padding, this.y + padding + i * lineHeight, { baseline: 'top' });
+          this.drawLine(line, x + padding, x + colWidth - padding, this.y + padding + i * lineHeight, direction);
         });
       });
       this.y += rowHeight;
@@ -167,20 +255,33 @@ export class PdfWriter {
   }
 }
 
-/**
- * jsPDF's built-in fonts only cover the WinAnsi character set (ASCII, Latin-1 and a handful of
- * typographic symbols). Detect text outside it so we can warn the user instead of silently
- * producing garbage glyphs.
- */
-const WIN_ANSI_ONLY =
-  /^[\x20-\x7E\xA0-\xFF\t\n\r€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]*$/;
+/** Characters jsPDF's built-in Helvetica can show: ASCII, Latin-1 and a few typographic symbols. */
+const WIN_ANSI_ONLY = /^[\x20-\x7E\xA0-\xFF\t\n\r€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ]*$/;
 
-export function hasUnsupportedGlyphs(text: string): boolean {
-  return !WIN_ANSI_ONLY.test(text);
+/** Substitutes for characters the fonts lack but that have an obvious look-alike. */
+const SUBSTITUTES: Record<string, string> = {
+  'ʾ': '’',
+  'ʿ': '‘',
+  'ʼ': '’',
+  'ʻ': '‘',
+  '‑': '-',
+  '‒': '-',
+  '−': '-',
+  'ﬁ': 'fi',
+  'ﬂ': 'fl',
+  '\u00AD': '',
+};
+
+interface TtfMetadata {
+  characterToGlyph?: (code: number) => number;
 }
 
-export const UNSUPPORTED_GLYPHS_WARNING =
-  'Some characters (for example non-Latin scripts or emoji) are not supported by the built-in PDF font and may not render correctly.';
+/** Build the user-facing warning for characters that were left blank. */
+export function unsupportedGlyphsWarning(chars: string[]): string | undefined {
+  if (chars.length === 0) return undefined;
+  const sample = chars.slice(0, 8).join(' ');
+  return `The PDF font has no glyphs for ${chars.length === 1 ? 'this character' : 'these characters'}, so they were left blank: ${sample}${chars.length > 8 ? ' …' : ''}`;
+}
 
 /**
  * Turn an image source (data URL) into something jsPDF can embed: PNG/JPEG data URLs are used

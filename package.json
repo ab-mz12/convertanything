@@ -14,9 +14,11 @@
     "postinstall": "node scripts/copy-ffmpeg-core.mjs"
   },
   "dependencies": {
+    "@expo-google-fonts/ibm-plex-sans-arabic": "^0.4.2",
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@jsquash/avif": "^2.1.0",
+    "bidi-js": "^1.0.3",
     "docx": "^9.7.1",
     "gifenc": "^1.0.3",
     "jspdf": "^3.0.1",

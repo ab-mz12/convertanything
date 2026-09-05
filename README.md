@@ -31,7 +31,7 @@ files never leave your device.
 | **Images** JPG, PNG, WebP, GIF, BMP, AVIF, SVG, ICO | JPG, PNG, WebP, GIF, BMP, AVIF, ICO (favicon), or a PDF page |
 | **Video** MP4, MOV, WebM, AVI, MKV, FLV, 3GP, WMV, MPEG, MPEG-TS | any of those containers, animated GIF, a JPG/PNG thumbnail, or audio-only MP3 / WAV / OGG / Opus / M4A / AAC / FLAC / AIFF / WMA |
 | **Audio** MP3, WAV, OGG, Opus, M4A, AAC, FLAC, AIFF, WMA, AMR | MP3, WAV, OGG, Opus, M4A, AAC, FLAC, AIFF, WMA |
-| **Word (DOCX)** | PDF, TXT, HTML |
+| **Word (DOCX)** | PDF (Latin + Arabic text, right-to-left aware), TXT, HTML |
 | **PDF** | TXT, DOCX (text only), PNG / JPG page images (multi-page PDFs become a ZIP) |
 | **Text** (`.txt`, `.md`, `.log`, `.csv`) | PDF, DOCX, HTML |
 | **HTML** | PDF, DOCX, TXT |
@@ -146,10 +146,11 @@ Tests live next to the code as `*.test.ts` and run in Node (no browser needed).
   can fail with an out-of-memory error. Files of a few hundred MB work on a typical laptop.
 - **Speed**: software H.264/VP8 encoding in WebAssembly is much slower than native FFmpeg; expect
   a few frames per second for 1080p. Remuxing and audio conversions are fast.
-- **PDF output uses the built-in Helvetica/Courier fonts**, which only cover Latin scripts. Text in
-  other scripts (Arabic, CJK, Cyrillic…) or emoji will not render correctly; the app shows a
-  warning when it detects this. Inline formatting (bold/italic, links) is not preserved in DOCX →
-  PDF; headings, lists, tables and images are.
+- **PDF output embeds IBM Plex Sans Arabic** (Latin + Arabic, with proper letter joining and
+  right-to-left layout via [bidi-js](https://github.com/lojjic/bidi-js)). Other scripts (CJK,
+  Cyrillic, Hebrew shaping is basic) and emoji are not covered; the app warns when it detects them.
+  Inline formatting (bold/italic, links) is not preserved in DOCX → PDF; headings, lists, tables
+  and images are. Word headers/footers (e.g. a logo in the page header) are not included.
 - **PDF → TXT / DOCX** extract the text layer only (no layout, fonts or images). Scanned PDFs need OCR, which is not included.
 - **HTML → PDF / DOCX** keeps the text structure (headings, lists, tables, inline data-URI images) but not CSS styling, and never fetches remote images.
 - **Animated GIF → image** uses the first frame. **Video → GIF** is limited to 12 fps and 480 px
