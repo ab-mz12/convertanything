@@ -27,6 +27,9 @@ export default defineConfig({
         // ~31 MB, AVIF codecs ~3.5 MB each) are not downloaded up front; they are cached the
         // first time a conversion needs them and served from cache afterwards.
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        // Keep the previous build's files cached when a new version activates, so a page that is
+        // still running the old version can keep lazy-loading its own chunks.
+        cleanupOutdatedCaches: false,
         globIgnores: ['ffmpeg/**'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
