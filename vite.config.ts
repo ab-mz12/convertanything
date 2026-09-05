@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // GitHub Pages serves project sites under /<repo>/; the deploy workflow sets this. Vercel/Netlify use '/'.
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [
     react(),
     tailwindcss(),

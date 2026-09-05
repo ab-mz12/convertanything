@@ -75,7 +75,10 @@ The output is a plain static site (`dist/`). There is no backend and no environm
 - **Vercel**: import the repo; the Vite preset is detected automatically (`vercel.json` only adds
   cache headers). Build command `npm run build`, output directory `dist`.
 - **Netlify**: `netlify.toml` is included (build `npm run build`, publish `dist`).
-- **Anything else** (GitHub Pages, S3, nginx…): run `npm run build` and upload `dist/`. Make sure
+- **GitHub Pages**: `.github/workflows/deploy.yml` builds and publishes the site on every push to
+  `main` (Settings → Pages → Source must be "GitHub Actions"; the workflow enables it on first run).
+  The workflow sets `VITE_BASE_PATH=/<repo-name>/` so assets resolve under the project URL.
+- **Anything else** (S3, nginx…): run `npm run build` and upload `dist/`. Make sure
   `.wasm` files are served with `Content-Type: application/wasm`. If you host under a sub-path,
   set `base` in `vite.config.ts`.
 

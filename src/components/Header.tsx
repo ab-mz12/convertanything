@@ -14,7 +14,7 @@ export function Header({ theme, onToggleTheme, settings, onUpdateSettings }: Hea
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-slate-50/80 backdrop-blur dark:border-slate-800/70 dark:bg-slate-950/70">
       <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
-        <a href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
+        <a href={import.meta.env.BASE_URL} className="flex items-center gap-2.5 font-semibold tracking-tight">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-md shadow-indigo-500/30">
             <Zap size={16} strokeWidth={2.5} />
           </span>
