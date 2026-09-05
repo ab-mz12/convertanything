@@ -44,6 +44,13 @@ export interface ImageSource {
 const LINE_HEIGHT = 1.35;
 const PX_TO_PT = 0.75;
 
+/**
+ * jsPDF also ships a bidi engine (a postProcessText hook) that, by default, treats text as visual
+ * LTR input and converts it to logical order, which would undo our own reordering. Declaring the
+ * input and output as visual LTR makes that hook leave the text untouched.
+ */
+const KEEP_VISUAL_ORDER = { isInputVisual: true, isOutputVisual: true, isInputRtl: false, isOutputRtl: false } as const;
+
 export class PdfWriter {
   readonly doc: jsPDF;
   readonly pageWidth: number;
@@ -150,8 +157,8 @@ export class PdfWriter {
   private drawLine(line: string, left: number, right: number, y: number, direction: Direction): void {
     const shaped = this.unicodeFont && hasRtlText(line) ? this.doc.processArabic(line) : line;
     const visual = toVisualOrder(shaped, direction);
-    if (direction === 'rtl') this.doc.text(visual, right, y, { baseline: 'top', align: 'right' });
-    else this.doc.text(visual, left, y, { baseline: 'top' });
+    if (direction === 'rtl') this.doc.text(visual, right, y, { ...KEEP_VISUAL_ORDER, baseline: 'top', align: 'right' });
+    else this.doc.text(visual, left, y, { ...KEEP_VISUAL_ORDER, baseline: 'top' });
   }
 
   writeText(text: string, options: TextOptions = {}): void {
@@ -186,8 +193,8 @@ export class PdfWriter {
     const right = direction === 'ltr' ? this.pageWidth - this.margin : this.pageWidth - this.margin - indent - gutter;
     const lines = this.lines(text, right - left);
     this.ensureSpace(lineHeight);
-    if (direction === 'ltr') this.doc.text(marker, this.margin + indent, this.y, { baseline: 'top' });
-    else this.doc.text(marker, this.pageWidth - this.margin - indent, this.y, { baseline: 'top', align: 'right' });
+    if (direction === 'ltr') this.doc.text(marker, this.margin + indent, this.y, { ...KEEP_VISUAL_ORDER, baseline: 'top' });
+    else this.doc.text(marker, this.pageWidth - this.margin - indent, this.y, { ...KEEP_VISUAL_ORDER, baseline: 'top', align: 'right' });
     lines.forEach((line, i) => {
       if (i > 0) this.ensureSpace(lineHeight);
       this.drawLine(line, left, right, this.y, direction);
@@ -246,7 +253,7 @@ export class PdfWriter {
       this.doc.setPage(page);
       this.setFont(9);
       this.doc.setTextColor('#9ca3af');
-      this.doc.text(`${page} / ${total}`, this.pageWidth / 2, this.pageHeight - 30, { align: 'center' });
+      this.doc.text(`${page} / ${total}`, this.pageWidth / 2, this.pageHeight - 30, { ...KEEP_VISUAL_ORDER, align: 'center' });
     }
   }
 
