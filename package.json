@@ -1,0 +1,40 @@
+{
+  "name": "convertanything",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Browser-based, fully client-side file converter. Your files never leave your device.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "postinstall": "node scripts/copy-ffmpeg-core.mjs"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@jsquash/avif": "^2.1.0",
+    "gifenc": "^1.0.3",
+    "jspdf": "^3.0.1",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.525.0",
+    "mammoth": "^1.9.1",
+    "pdfjs-dist": "^5.3.31",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.11",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "vite-plugin-pwa": "^1.0.0",
+    "vitest": "^3.2.4"
+  }
+}

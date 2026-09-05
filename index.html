@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="ConvertAnything converts images, video, audio and documents entirely inside your browser. Your files never leave your device."
+    />
+    <meta name="theme-color" content="#020617" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>ConvertAnything · private, offline file converter</title>
+    <script>
+      // Apply the saved theme before first paint so there is no flash. Dark is the default.
+      try {
+        if (localStorage.getItem('ca-theme') === 'light') {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (_) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
