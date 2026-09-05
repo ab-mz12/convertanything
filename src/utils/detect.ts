@@ -76,14 +76,33 @@ export function sniffSignature(bytes: Uint8Array, extensionHint = ''): FormatId 
     return undefined;
   }
   if (head4 === '%PDF') return 'pdf';
-  if (head4 === 'OggS') return 'ogg';
+  if (head4 === 'OggS') return ascii(bytes, 0, 128).includes('OpusHead') ? 'opus' : 'ogg';
   if (head4 === 'fLaC') return 'flac';
   if (head4.startsWith('ID3')) return 'mp3';
+  if (head4.startsWith('FLV')) return 'flv';
+  if (head4 === 'FORM' && bytes.length >= 12) {
+    const kind = ascii(bytes, 8, 4);
+    return kind === 'AIFF' || kind === 'AIFC' ? 'aiff' : undefined;
+  }
+  if (head6.startsWith('#!AMR')) return 'amr';
+  // ASF container: WMV (video) or WMA (audio); the header does not say which, so use the extension.
+  if (startsWith(bytes, [0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11])) {
+    return extensionHint === 'wma' ? 'wma' : 'wmv';
+  }
+  // MPEG program stream (pack header) or elementary video stream.
+  if (startsWith(bytes, [0x00, 0x00, 0x01, 0xba]) || startsWith(bytes, [0x00, 0x00, 0x01, 0xb3])) return 'mpg';
+  // MPEG transport stream: 0x47 sync byte every 188 bytes.
+  if (bytes[0] === 0x47 && bytes.length > 376 && bytes[188] === 0x47 && bytes[376] === 0x47) return 'ts';
+  // Windows icon: reserved 0, type 1, at least one image.
+  if (bytes[0] === 0 && bytes[1] === 0 && bytes[2] === 1 && bytes[3] === 0 && bytes.length >= 6 && (bytes[4] | (bytes[5] << 8)) > 0) {
+    return 'ico';
+  }
 
   // ISO base media file format: MP4, MOV, M4A, AVIF, HEIC ... all start with an `ftyp` box.
   if (bytes.length >= 12 && ascii(bytes, 4, 4) === 'ftyp') {
     const brand = ascii(bytes, 8, 4);
     if (brand.startsWith('avif') || brand.startsWith('avis')) return 'avif';
+    if (brand.startsWith('3g')) return '3gp';
     if (brand.startsWith('hei') || brand.startsWith('mif') || brand.startsWith('msf')) return undefined; // HEIF/HEIC
     const hinted = formatFromExtension(extensionHint)?.id;
     if (hinted && ISO_BMFF_FAMILY.has(hinted)) return hinted;
@@ -108,8 +127,20 @@ export function sniffSignature(bytes: Uint8Array, extensionHint = ''): FormatId 
     return extensionHint === 'docx' ? 'docx' : undefined;
   }
 
+  // AAC in an ADTS stream: 12-bit sync word 0xFFF followed by MPEG-4 layer bits 00.
+  if (bytes[0] === 0xff && (bytes[1] & 0xf6) === 0xf0) return 'aac';
+
   if (hasMp3FrameSync(bytes)) return 'mp3';
 
+  return undefined;
+}
+
+/** Text-based formats we can recognise from their opening tags. */
+export function sniffTextFormat(bytes: Uint8Array): FormatId | undefined {
+  const head = ascii(bytes, 0, Math.min(bytes.length, 1024)).replace(/^\uFEFF/, '').trimStart();
+  const withoutProlog = head.replace(/^<\?xml[^>]*>\s*/i, '').replace(/^(<!--[\s\S]*?-->\s*)+/, '');
+  if (/^(<!doctype\s+svg|<svg[\s>])/i.test(withoutProlog)) return 'svg';
+  if (/^(<!doctype\s+html|<html[\s>])/i.test(withoutProlog)) return 'html';
   return undefined;
 }
 
@@ -143,7 +174,7 @@ export function detectFormat({ name, mime, bytes }: DetectInput): Detection | un
   }
 
   if (byExtension) {
-    if (byExtension.id === 'txt') {
+    if (byExtension.id === 'txt' || byExtension.id === 'html' || byExtension.id === 'svg') {
       // Only accept text extensions when the content is actually text (empty files are fine).
       if (bytes.length === 0 || looksLikeText(bytes)) {
         return { format: byExtension, source: 'extension', extensionMismatch: false };
@@ -161,7 +192,7 @@ export function detectFormat({ name, mime, bytes }: DetectInput): Detection | un
   }
 
   if (looksLikeText(bytes)) {
-    return { format: FORMATS.txt, source: 'heuristic', extensionMismatch: false };
+    return { format: FORMATS[sniffTextFormat(bytes) ?? 'txt'], source: 'heuristic', extensionMismatch: false };
   }
 
   return undefined;

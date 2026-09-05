@@ -188,6 +188,8 @@ export const UNSUPPORTED_GLYPHS_WARNING =
  * decoded by this browser (e.g. EMF/WMF clip art inside Word files).
  */
 export async function loadImageSource(src: string): Promise<ImageSource | null> {
+  // Only inline images: never fetch remote URLs, nothing may leave the browser.
+  if (!/^data:image\//i.test(src)) return null;
   try {
     const img = new Image();
     img.decoding = 'async';

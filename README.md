@@ -28,12 +28,15 @@ files never leave your device.
 
 | Input | Outputs |
 | --- | --- |
-| **Images** JPG, PNG, WebP, GIF, BMP, AVIF | any other image format in the list, plus PDF |
-| **Video** MP4, MOV, WebM, AVI, MKV | MP4, MOV, WebM, AVI, MKV, animated GIF, or audio-only MP3 / WAV / OGG / M4A / FLAC |
-| **Audio** MP3, WAV, OGG, M4A, FLAC | any other audio format in the list |
-| **Documents** | DOCX → PDF, DOCX → TXT, PDF → TXT, TXT → PDF |
+| **Images** JPG, PNG, WebP, GIF, BMP, AVIF, SVG, ICO | JPG, PNG, WebP, GIF, BMP, AVIF, ICO (favicon), or a PDF page |
+| **Video** MP4, MOV, WebM, AVI, MKV, FLV, 3GP, WMV, MPEG, MPEG-TS | any of those containers, animated GIF, a JPG/PNG thumbnail, or audio-only MP3 / WAV / OGG / Opus / M4A / AAC / FLAC / AIFF / WMA |
+| **Audio** MP3, WAV, OGG, Opus, M4A, AAC, FLAC, AIFF, WMA, AMR | MP3, WAV, OGG, Opus, M4A, AAC, FLAC, AIFF, WMA |
+| **Word (DOCX)** | PDF, TXT, HTML |
+| **PDF** | TXT, DOCX (text only), PNG / JPG page images (multi-page PDFs become a ZIP) |
+| **Text** (`.txt`, `.md`, `.log`, `.csv`) | PDF, DOCX, HTML |
+| **HTML** | PDF, DOCX, TXT |
 
-Text files include `.txt`, `.md`, `.log` and `.csv`.
+SVG and AMR are input-only (no browser-side encoder). Video → MPEG uses MPEG-2, video → WMV uses WMV2/WMA.
 
 ## How it works
 
@@ -41,8 +44,9 @@ Text files include `.txt`, `.md`, `.log` and `.csv`.
 | --- | --- | --- |
 | Images | Browser codecs via `createImageBitmap` + `OffscreenCanvas`; hand-written BMP encoder; [gifenc](https://github.com/mattdesl/gifenc) for GIF; [@jsquash/avif](https://github.com/jamsinclair/jSquash) (WASM) for AVIF | Web Worker (main-thread fallback for old browsers) |
 | Video / audio | [ffmpeg.wasm](https://ffmpegwasm.netlify.app/) single-threaded core (libx264, libvpx, libmp3lame, libvorbis, AAC, FLAC, mpeg4) | FFmpeg's own Web Worker |
-| DOCX | [mammoth](https://github.com/mwilliamson/mammoth.js) to HTML/text, then a small flow-layout engine on top of [jsPDF](https://github.com/parallax/jsPDF) | Main thread |
-| PDF → TXT | [pdf.js](https://mozilla.github.io/pdf.js/) | pdf.js Web Worker |
+| DOCX / HTML | [mammoth](https://github.com/mwilliamson/mammoth.js) to HTML/text, `DOMParser` to a block model, then a small flow-layout engine on top of [jsPDF](https://github.com/parallax/jsPDF) | Main thread |
+| → DOCX | [docx](https://github.com/dolanmiu/docx) | Main thread |
+| PDF → TXT / DOCX / images | [pdf.js](https://mozilla.github.io/pdf.js/) (text layer and page rendering) | pdf.js Web Worker + canvas |
 | TXT / image → PDF | jsPDF | Main thread |
 | ZIP | [JSZip](https://stuk.github.io/jszip/) | Main thread |
 
@@ -121,8 +125,8 @@ convertanything/
         └── converters/
             ├── index.ts          # lazy dispatcher
             ├── types.ts          # ConversionRequest / Result / Error
-            ├── image/            # imageCore (shared), image.worker, bmp, gif
-            ├── document/         # pdfWriter (jsPDF layout), docx→pdf/txt, pdf→txt, txt→pdf, image→pdf
+            ├── image/            # imageCore (shared), image.worker, bmp, gif, ico
+            ├── document/         # pdfWriter + blocksToPdf (jsPDF layout), docx/pdf/txt/html converters, toDocx, pdfToImages
             └── media/            # ffmpegArgs (pure, tested), ffmpegLoader, mediaConverter
 ```
 
@@ -146,7 +150,8 @@ Tests live next to the code as `*.test.ts` and run in Node (no browser needed).
   other scripts (Arabic, CJK, Cyrillic…) or emoji will not render correctly; the app shows a
   warning when it detects this. Inline formatting (bold/italic, links) is not preserved in DOCX →
   PDF; headings, lists, tables and images are.
-- **PDF → TXT** extracts the text layer only. Scanned PDFs need OCR, which is not included.
+- **PDF → TXT / DOCX** extract the text layer only (no layout, fonts or images). Scanned PDFs need OCR, which is not included.
+- **HTML → PDF / DOCX** keeps the text structure (headings, lists, tables, inline data-URI images) but not CSS styling, and never fetches remote images.
 - **Animated GIF → image** uses the first frame. **Video → GIF** is limited to 12 fps and 480 px
   wide to keep file sizes reasonable.
 - **AVIF encoding** is slow for large images (it is a WASM build of libavif).

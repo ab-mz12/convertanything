@@ -11,6 +11,16 @@ describe('getConverterKind', () => {
 
   it('routes image to pdf through the document converter', () => {
     expect(getConverterKind('jpg', 'pdf')).toBe('document');
+    expect(getConverterKind('svg', 'pdf')).toBe('document');
+    expect(getConverterKind('svg', 'png')).toBe('image');
+  });
+
+  it('routes video thumbnails to ffmpeg but PDF page images to the document converter', () => {
+    expect(getConverterKind('mp4', 'jpg')).toBe('media');
+    expect(getConverterKind('mp4', 'png')).toBe('media');
+    expect(getConverterKind('pdf', 'png')).toBe('document');
+    expect(getConverterKind('pdf', 'docx')).toBe('document');
+    expect(getConverterKind('html', 'docx')).toBe('document');
   });
 
   it('routes anything video/audio to ffmpeg', () => {
@@ -31,6 +41,8 @@ describe('getConverterKind', () => {
     expect(getConverterKind('jpg', 'mp3')).toBeUndefined();
     expect(getConverterKind('mp3', 'gif')).toBeUndefined();
     expect(getConverterKind('png', 'png')).toBeUndefined();
+    expect(getConverterKind('jpg', 'svg')).toBeUndefined();
+    expect(getConverterKind('mp3', 'amr')).toBeUndefined();
   });
 
   it('has a converter for every offered target', () => {

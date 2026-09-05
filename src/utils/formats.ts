@@ -13,22 +13,35 @@ export type FormatId =
   | 'gif'
   | 'bmp'
   | 'avif'
+  | 'svg'
+  | 'ico'
   // video
   | 'mp4'
   | 'mov'
   | 'webm'
   | 'avi'
   | 'mkv'
+  | 'flv'
+  | '3gp'
+  | 'wmv'
+  | 'mpg'
+  | 'ts'
   // audio
   | 'mp3'
   | 'wav'
   | 'ogg'
+  | 'opus'
   | 'm4a'
+  | 'aac'
   | 'flac'
+  | 'aiff'
+  | 'wma'
+  | 'amr'
   // documents
   | 'pdf'
   | 'docx'
-  | 'txt';
+  | 'txt'
+  | 'html';
 
 export interface FormatDef {
   id: FormatId;
@@ -48,18 +61,30 @@ export const FORMATS: Readonly<Record<FormatId, FormatDef>> = {
   gif: { id: 'gif', label: 'GIF', extensions: ['gif'], mimes: ['image/gif'], category: 'image' },
   bmp: { id: 'bmp', label: 'BMP', extensions: ['bmp', 'dib'], mimes: ['image/bmp', 'image/x-ms-bmp', 'image/x-bmp'], category: 'image' },
   avif: { id: 'avif', label: 'AVIF', extensions: ['avif'], mimes: ['image/avif'], category: 'image' },
+  svg: { id: 'svg', label: 'SVG', extensions: ['svg'], mimes: ['image/svg+xml'], category: 'image' },
+  ico: { id: 'ico', label: 'ICO (icon)', extensions: ['ico'], mimes: ['image/x-icon', 'image/vnd.microsoft.icon'], category: 'image' },
 
   mp4: { id: 'mp4', label: 'MP4', extensions: ['mp4', 'm4v'], mimes: ['video/mp4', 'video/x-m4v'], category: 'video' },
   mov: { id: 'mov', label: 'MOV', extensions: ['mov', 'qt'], mimes: ['video/quicktime'], category: 'video' },
   webm: { id: 'webm', label: 'WebM', extensions: ['webm'], mimes: ['video/webm', 'audio/webm'], category: 'video' },
   avi: { id: 'avi', label: 'AVI', extensions: ['avi'], mimes: ['video/x-msvideo', 'video/avi', 'video/msvideo'], category: 'video' },
   mkv: { id: 'mkv', label: 'MKV', extensions: ['mkv'], mimes: ['video/x-matroska'], category: 'video' },
+  flv: { id: 'flv', label: 'FLV', extensions: ['flv'], mimes: ['video/x-flv'], category: 'video' },
+  '3gp': { id: '3gp', label: '3GP', extensions: ['3gp', '3g2'], mimes: ['video/3gpp', 'video/3gpp2'], category: 'video' },
+  wmv: { id: 'wmv', label: 'WMV', extensions: ['wmv'], mimes: ['video/x-ms-wmv'], category: 'video' },
+  mpg: { id: 'mpg', label: 'MPEG', extensions: ['mpg', 'mpeg'], mimes: ['video/mpeg'], category: 'video' },
+  ts: { id: 'ts', label: 'MPEG-TS', extensions: ['ts', 'm2ts', 'mts'], mimes: ['video/mp2t'], category: 'video' },
 
   mp3: { id: 'mp3', label: 'MP3', extensions: ['mp3'], mimes: ['audio/mpeg', 'audio/mp3'], category: 'audio' },
   wav: { id: 'wav', label: 'WAV', extensions: ['wav', 'wave'], mimes: ['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave'], category: 'audio' },
-  ogg: { id: 'ogg', label: 'OGG', extensions: ['ogg', 'oga', 'opus'], mimes: ['audio/ogg', 'application/ogg', 'audio/opus'], category: 'audio' },
+  ogg: { id: 'ogg', label: 'OGG (Vorbis)', extensions: ['ogg', 'oga'], mimes: ['audio/ogg', 'application/ogg'], category: 'audio' },
+  opus: { id: 'opus', label: 'Opus', extensions: ['opus'], mimes: ['audio/opus'], category: 'audio' },
   m4a: { id: 'm4a', label: 'M4A', extensions: ['m4a', 'm4b'], mimes: ['audio/mp4', 'audio/x-m4a', 'audio/m4a'], category: 'audio' },
+  aac: { id: 'aac', label: 'AAC', extensions: ['aac'], mimes: ['audio/aac', 'audio/x-aac', 'audio/aacp'], category: 'audio' },
   flac: { id: 'flac', label: 'FLAC', extensions: ['flac'], mimes: ['audio/flac', 'audio/x-flac'], category: 'audio' },
+  aiff: { id: 'aiff', label: 'AIFF', extensions: ['aiff', 'aif', 'aifc'], mimes: ['audio/aiff', 'audio/x-aiff'], category: 'audio' },
+  wma: { id: 'wma', label: 'WMA', extensions: ['wma'], mimes: ['audio/x-ms-wma'], category: 'audio' },
+  amr: { id: 'amr', label: 'AMR', extensions: ['amr'], mimes: ['audio/amr', 'audio/3gpp'], category: 'audio' },
 
   pdf: { id: 'pdf', label: 'PDF', extensions: ['pdf'], mimes: ['application/pdf'], category: 'document' },
   docx: {
@@ -76,6 +101,7 @@ export const FORMATS: Readonly<Record<FormatId, FormatDef>> = {
     mimes: ['text/plain', 'text/markdown', 'text/csv'],
     category: 'document',
   },
+  html: { id: 'html', label: 'HTML', extensions: ['html', 'htm', 'xhtml'], mimes: ['text/html', 'application/xhtml+xml'], category: 'document' },
 };
 
 export const FORMAT_IDS = Object.keys(FORMATS) as FormatId[];
@@ -128,10 +154,14 @@ export function acceptAttribute(): string {
 // ---------------------------------------------------------------------------------------------
 
 const DOCUMENT_TARGETS: Partial<Record<FormatId, readonly FormatId[]>> = {
-  docx: ['pdf', 'txt'],
-  pdf: ['txt'],
-  txt: ['pdf'],
+  docx: ['pdf', 'txt', 'html'],
+  pdf: ['txt', 'docx', 'png', 'jpg'],
+  txt: ['pdf', 'docx', 'html'],
+  html: ['pdf', 'docx', 'txt'],
 };
+
+/** Formats we can read but not write (no encoder available in the browser). */
+const INPUT_ONLY = new Set<FormatId>(['svg', 'amr']);
 
 /**
  * Every target format a file of `source` format can be converted to. The list never contains the
@@ -139,14 +169,14 @@ const DOCUMENT_TARGETS: Partial<Record<FormatId, readonly FormatId[]>> = {
  */
 export function getTargets(source: FormatId): FormatId[] {
   const { category } = FORMATS[source];
-  const others = (cat: Category) => formatsInCategory(cat).filter((id) => id !== source);
+  const others = (cat: Category) => formatsInCategory(cat).filter((id) => id !== source && !INPUT_ONLY.has(id));
   switch (category) {
     case 'image':
       // Any image → any other image, or wrapped into a PDF page.
       return [...others('image'), 'pdf'];
     case 'video':
-      // Video → other containers, audio extraction, or an animated GIF.
-      return [...others('video'), ...formatsInCategory('audio'), 'gif'];
+      // Video → other containers, audio extraction, an animated GIF, or a still thumbnail.
+      return [...others('video'), ...others('audio'), 'gif', 'jpg', 'png'];
     case 'audio':
       return others('audio');
     case 'document':
@@ -166,19 +196,32 @@ const PREFERRED_DEFAULT: Partial<Record<FormatId, FormatId>> = {
   gif: 'png',
   bmp: 'png',
   avif: 'jpg',
+  svg: 'png',
+  ico: 'png',
   mp4: 'mov',
   mov: 'mp4',
   webm: 'mp4',
   avi: 'mp4',
   mkv: 'mp4',
+  flv: 'mp4',
+  '3gp': 'mp4',
+  wmv: 'mp4',
+  mpg: 'mp4',
+  ts: 'mp4',
   mp3: 'wav',
   wav: 'mp3',
   ogg: 'mp3',
   m4a: 'mp3',
   flac: 'mp3',
+  opus: 'mp3',
+  aac: 'mp3',
+  aiff: 'mp3',
+  wma: 'mp3',
+  amr: 'mp3',
   docx: 'pdf',
   pdf: 'txt',
   txt: 'pdf',
+  html: 'pdf',
 };
 
 /** The target pre-selected in the dropdown when a file is added. */

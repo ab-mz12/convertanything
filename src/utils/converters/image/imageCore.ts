@@ -8,6 +8,7 @@ import { bytesToBlob } from '../../blob';
 import { ConversionError } from '../types';
 import { encodeBMP } from './bmp';
 import { encodeGIF } from './gif';
+import { encodeICO } from './ico';
 
 export interface ImageJob {
   file: File;
@@ -31,7 +32,13 @@ type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
 const HAS_OFFSCREEN = typeof OffscreenCanvas !== 'undefined';
 
 /** Targets that keep an alpha channel. Everything else is flattened onto white. */
-const ALPHA_TARGETS = new Set<FormatId>(['png', 'webp', 'avif']);
+const ALPHA_TARGETS = new Set<FormatId>(['png', 'webp', 'avif', 'ico']);
+
+/** Sources that createImageBitmap cannot handle reliably; they are decoded through an <img>. */
+export const MAIN_THREAD_SOURCES = new Set<FormatId>(['svg', 'ico']);
+
+/** Vector images without a useful intrinsic size are rasterised at this size. */
+const SVG_TARGET_SIZE = 1024;
 /** Targets the canvas can encode by itself. */
 const CANVAS_TARGETS = new Set<FormatId>(['jpg', 'png', 'webp']);
 
@@ -70,8 +77,49 @@ async function canvasToBlob(canvas: AnyCanvas, type: string, quality?: number): 
   return blob;
 }
 
+/** Decode through an <img> element (main thread only). Used for SVG and ICO. */
+async function decodeViaImageElement(file: File, vector: boolean): Promise<ImageBitmap> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    await img.decode();
+    let width = img.naturalWidth;
+    let height = img.naturalHeight;
+    if (!width || !height) {
+      width = SVG_TARGET_SIZE;
+      height = SVG_TARGET_SIZE;
+    } else if (vector && Math.max(width, height) < SVG_TARGET_SIZE) {
+      // SVGs are resolution independent: rasterise small ones at a usable size.
+      const factor = SVG_TARGET_SIZE / Math.max(width, height);
+      width = Math.round(width * factor);
+      height = Math.round(height * factor);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no 2d context');
+    ctx.drawImage(img, 0, 0, width, height);
+    return await createImageBitmap(canvas);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 /** Decode any supported image to a bitmap, falling back to a WASM decoder for AVIF. */
 export async function decodeImage(file: File, source: FormatId): Promise<ImageBitmap> {
+  if (MAIN_THREAD_SOURCES.has(source) && typeof document !== 'undefined') {
+    try {
+      return await decodeViaImageElement(file, source === 'svg');
+    } catch (error) {
+      throw new ConversionError(
+        `Could not decode this ${source.toUpperCase()} file. It may be malformed or not really a ${source.toUpperCase()}.`,
+        String(error),
+      );
+    }
+  }
   try {
     return await createImageBitmap(file);
   } catch (error) {
@@ -120,6 +168,19 @@ export async function convertImageCore(job: ImageJob): Promise<Blob> {
       return bytesToBlob(encodeBMP(imageData), mimeFor('bmp'));
     case 'gif':
       return bytesToBlob(encodeGIF(imageData), mimeFor('gif'));
+    case 'ico': {
+      // Icons are capped at 256 px; downscale larger images proportionally.
+      const scale = Math.min(1, 256 / Math.max(width, height));
+      const iconWidth = Math.max(1, Math.round(width * scale));
+      const iconHeight = Math.max(1, Math.round(height * scale));
+      let iconCanvas = canvas;
+      if (scale < 1) {
+        iconCanvas = createCanvas(iconWidth, iconHeight);
+        get2d(iconCanvas).drawImage(canvas, 0, 0, iconWidth, iconHeight);
+      }
+      const png = new Uint8Array(await (await canvasToBlob(iconCanvas, 'image/png')).arrayBuffer());
+      return bytesToBlob(encodeICO(png, iconWidth, iconHeight), mimeFor('ico'));
+    }
     case 'avif': {
       const { encode } = await import('@jsquash/avif');
       const buffer = await encode(imageData, { quality: Math.round(quality * 100), speed: 8 });

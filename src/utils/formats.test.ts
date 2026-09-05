@@ -52,36 +52,42 @@ describe('getTargets', () => {
     }
   });
 
-  it('offers images every other image format plus PDF, but nothing else', () => {
+  it('offers images every other encodable image format plus PDF, but nothing else', () => {
     const targets = getTargets('jpg');
-    expect(targets).toEqual(expect.arrayContaining(['png', 'webp', 'gif', 'bmp', 'avif', 'pdf']));
+    expect(targets).toEqual(expect.arrayContaining(['png', 'webp', 'gif', 'bmp', 'avif', 'ico', 'pdf']));
+    expect(targets).not.toContain('svg'); // input only
     expect(targets).not.toContain('mp3');
     expect(targets).not.toContain('mp4');
     expect(targets).not.toContain('docx');
-    expect(targets).toHaveLength(6);
+    expect(targets).toHaveLength(7);
+    expect(getTargets('svg')).toEqual(expect.arrayContaining(['png', 'jpg', 'ico', 'pdf']));
   });
 
-  it('offers video other containers, audio extraction and GIF', () => {
+  it('offers video other containers, audio extraction, GIF and still thumbnails', () => {
     const targets = getTargets('mp4');
     expect(targets).toEqual(
-      expect.arrayContaining(['mov', 'webm', 'avi', 'mkv', 'mp3', 'wav', 'ogg', 'm4a', 'flac', 'gif']),
+      expect.arrayContaining(['mov', 'webm', 'avi', 'mkv', 'flv', '3gp', 'wmv', 'mpg', 'ts', 'mp3', 'wav', 'ogg', 'opus', 'm4a', 'aac', 'flac', 'aiff', 'wma', 'gif', 'jpg', 'png']),
     );
     expect(targets).not.toContain('mp4');
-    expect(targets).not.toContain('png');
+    expect(targets).not.toContain('amr'); // no encoder in the browser build
+    expect(targets).not.toContain('webp');
     expect(targets).not.toContain('pdf');
   });
 
   it('keeps audio within audio', () => {
     const targets = getTargets('mp3');
-    expect(targets).toEqual(expect.arrayContaining(['wav', 'ogg', 'm4a', 'flac']));
-    expect(targets).toHaveLength(formatsInCategory('audio').length - 1);
+    expect(targets).toEqual(expect.arrayContaining(['wav', 'ogg', 'opus', 'm4a', 'aac', 'flac', 'aiff', 'wma']));
+    expect(targets).not.toContain('amr');
+    expect(targets).toHaveLength(formatsInCategory('audio').length - 2); // minus itself and AMR
     expect(targets.some((t) => FORMATS[t].category !== 'audio')).toBe(false);
+    expect(getTargets('amr')).toContain('mp3');
   });
 
   it('offers only the supported document conversions', () => {
-    expect(getTargets('docx')).toEqual(['pdf', 'txt']);
-    expect(getTargets('pdf')).toEqual(['txt']);
-    expect(getTargets('txt')).toEqual(['pdf']);
+    expect(getTargets('docx')).toEqual(['pdf', 'txt', 'html']);
+    expect(getTargets('pdf')).toEqual(['txt', 'docx', 'png', 'jpg']);
+    expect(getTargets('txt')).toEqual(['pdf', 'docx', 'html']);
+    expect(getTargets('html')).toEqual(['pdf', 'docx', 'txt']);
   });
 });
 
@@ -93,7 +99,9 @@ describe('isValidConversion', () => {
     expect(isValidConversion('docx', 'pdf')).toBe(true);
     expect(isValidConversion('jpg', 'mp3')).toBe(false);
     expect(isValidConversion('mp3', 'mp4')).toBe(false);
-    expect(isValidConversion('pdf', 'docx')).toBe(false);
+    expect(isValidConversion('pdf', 'docx')).toBe(true);
+    expect(isValidConversion('pdf', 'mp4')).toBe(false);
+    expect(isValidConversion('docx', 'jpg')).toBe(false);
     expect(isValidConversion('png', 'png')).toBe(false);
     expect(isValidConversion('nope', 'png')).toBe(false);
     expect(isValidConversion('png', 'nope')).toBe(false);

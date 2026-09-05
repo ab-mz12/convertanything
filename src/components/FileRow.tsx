@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowRight, Download, Play, RotateCcw, X } from 'lucide-
 import type { QueueItem } from '../hooks/useConversionQueue';
 import { formatBytes, percentChange } from '../utils/bytes';
 import { getExtension } from '../utils/detect';
-import { CATEGORY_LABEL, FORMATS, getTargets, type Category, type FormatId } from '../utils/formats';
+import { CATEGORY_LABEL, FORMATS, formatsInCategory, getTargets, type Category, type FormatId } from '../utils/formats';
 import { downloadBlob } from '../utils/download';
 import { FileTypeIcon } from './FileTypeIcon';
 import { FormatSelect } from './FormatSelect';
@@ -18,6 +18,10 @@ interface FileRowProps {
   onConvert: (id: string) => void;
   onRemove: (id: string) => void;
 }
+
+const SUPPORTED_INPUTS = (['image', 'video', 'audio', 'document'] as Category[])
+  .map((category) => `${CATEGORY_LABEL[category]}s: ${formatsInCategory(category).map((id) => FORMATS[id].label).join(', ')}`)
+  .join('. ');
 
 export function FileRow({ item, siblingCount, onSetTarget, onSetTargetForCategory, onConvert, onRemove }: FileRowProps) {
   const detection = item.detection;
@@ -143,10 +147,7 @@ export function FileRow({ item, siblingCount, onSetTarget, onSetTargetForCategor
       )}
 
       {item.status === 'unsupported' && (
-        <p className="muted mt-2 text-xs">
-          This file type can’t be converted here. Supported inputs: images (JPG, PNG, WebP, GIF, BMP, AVIF),
-          video (MP4, MOV, WebM, AVI, MKV), audio (MP3, WAV, OGG, M4A, FLAC), PDF, DOCX and plain text.
-        </p>
+        <p className="muted mt-2 text-xs">This file type can’t be converted here. Supported inputs: {SUPPORTED_INPUTS}.</p>
       )}
     </li>
   );

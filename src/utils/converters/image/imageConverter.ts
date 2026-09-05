@@ -5,7 +5,7 @@
  */
 import { outputFileName } from '../../formats';
 import { ConversionError, abortError, type ConversionRequest, type ConversionResult } from '../types';
-import { convertImageCore, type ImageJob, type ImageWorkerRequest, type ImageWorkerResponse } from './imageCore';
+import { MAIN_THREAD_SOURCES, convertImageCore, type ImageJob, type ImageWorkerRequest, type ImageWorkerResponse } from './imageCore';
 
 let worker: Worker | null = null;
 let sequence = 0;
@@ -86,7 +86,8 @@ export async function convertImage(request: ConversionRequest): Promise<Conversi
     quality: request.options.imageQuality,
   };
   request.onProgress(null, 'Converting');
-  const blob = canUseImageWorker() ? await runInWorker(job, request.signal) : await convertImageCore(job);
+  const useWorker = canUseImageWorker() && !MAIN_THREAD_SOURCES.has(request.source);
+  const blob = useWorker ? await runInWorker(job, request.signal) : await convertImageCore(job);
   request.onProgress(1, 'Done');
   return { blob, fileName: outputFileName(request.file.name, request.target) };
 }

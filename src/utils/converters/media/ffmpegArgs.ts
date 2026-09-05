@@ -49,7 +49,21 @@ export function transcodeArgs(target: FormatId, input: string, output: string): 
     case 'mov':
       return [...base, ...VIDEO_MAPPING, ...EVEN_DIMENSIONS, ...H264_AAC, '-movflags', '+faststart', output];
     case 'mkv':
+    case 'flv':
+    case '3gp':
+    case 'ts':
+      // All of these containers carry H.264 + AAC happily.
       return [...base, ...VIDEO_MAPPING, ...EVEN_DIMENSIONS, ...H264_AAC, output];
+    case 'wmv':
+      return [...base, ...VIDEO_MAPPING, '-c:v', 'wmv2', '-b:v', '2M', '-c:a', 'wmav2', '-b:a', '128k', output];
+    case 'mpg':
+      // MPEG-2 only accepts standard frame rates, so normalise to 30 fps.
+      return [...base, ...VIDEO_MAPPING, ...EVEN_DIMENSIONS, '-r', '30', '-c:v', 'mpeg2video', '-q:v', '4', '-c:a', 'mp2', '-b:a', '192k', output];
+    case 'jpg':
+      // Still thumbnail: the `thumbnail` filter picks a representative frame from the first 30.
+      return [...base, '-map', '0:v:0', '-an', '-sn', '-dn', '-vf', 'thumbnail=30', '-frames:v', '1', '-q:v', '2', output];
+    case 'png':
+      return [...base, '-map', '0:v:0', '-an', '-sn', '-dn', '-vf', 'thumbnail=30', '-frames:v', '1', output];
     case 'webm':
       // VP8 is several times faster than VP9 in WebAssembly and universally supported.
       return [
@@ -81,6 +95,14 @@ export function transcodeArgs(target: FormatId, input: string, output: string): 
       return [...base, '-vn', '-sn', '-dn', '-c:a', 'aac', '-b:a', '192k', output];
     case 'flac':
       return [...base, '-vn', '-sn', '-dn', '-c:a', 'flac', output];
+    case 'aac':
+      return [...base, '-vn', '-sn', '-dn', '-c:a', 'aac', '-b:a', '192k', output];
+    case 'aiff':
+      return [...base, '-vn', '-sn', '-dn', '-c:a', 'pcm_s16be', output];
+    case 'opus':
+      return [...base, '-vn', '-sn', '-dn', '-c:a', 'libopus', '-b:a', '128k', output];
+    case 'wma':
+      return [...base, '-vn', '-sn', '-dn', '-c:a', 'wmav2', '-b:a', '160k', output];
     default:
       throw new Error(`No FFmpeg recipe for target "${target}"`);
   }

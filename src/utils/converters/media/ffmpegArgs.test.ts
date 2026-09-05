@@ -42,8 +42,31 @@ describe('transcodeArgs', () => {
     expect(args.at(-1)).toBe('movie.mkv');
   });
 
+  it('encodes the newer audio targets with the right codecs', () => {
+    expect(transcodeArgs('aac', 'in.wav', 'out.aac')).toContain('aac');
+    expect(transcodeArgs('aiff', 'in.wav', 'out.aiff')).toContain('pcm_s16be');
+    expect(transcodeArgs('opus', 'in.wav', 'out.opus')).toContain('libopus');
+    expect(transcodeArgs('wma', 'in.wav', 'out.wma')).toContain('wmav2');
+  });
+
+  it('extracts a single still frame for image targets', () => {
+    for (const target of ['jpg', 'png'] as const) {
+      const args = transcodeArgs(target, 'in.mp4', `out.${target}`);
+      expect(args).toContain('-an');
+      expect(args.join(' ')).toContain('thumbnail');
+      const frames = args.indexOf('-frames:v');
+      expect(args[frames + 1]).toBe('1');
+    }
+  });
+
+  it('uses MPEG-2/MP2 for .mpg and WMV2/WMA for .wmv', () => {
+    expect(transcodeArgs('mpg', 'in.mp4', 'out.mpg')).toEqual(expect.arrayContaining(['mpeg2video', 'mp2']));
+    expect(transcodeArgs('wmv', 'in.mp4', 'out.wmv')).toEqual(expect.arrayContaining(['wmv2', 'wmav2']));
+  });
+
   it('throws for targets ffmpeg is not responsible for', () => {
-    expect(() => transcodeArgs('png', 'a', 'b')).toThrow(/No FFmpeg recipe/);
+    expect(() => transcodeArgs('docx', 'a', 'b')).toThrow(/No FFmpeg recipe/);
+    expect(() => transcodeArgs('svg', 'a', 'b')).toThrow(/No FFmpeg recipe/);
   });
 
   it('has a recipe for every media target', () => {
